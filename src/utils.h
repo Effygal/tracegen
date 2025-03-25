@@ -8,6 +8,7 @@ using i64 = int64_t;
 using f64 = double;
 using nvec = std::vector<i64>;
 using str = std::string;
+using dist = std::function<i64(std::mt19937_64 &)>;
 
 #define log_info(MSG, ...)                                                     \
     do {                                                                       \

@@ -48,3 +48,54 @@ Examples:
 # set blocksize to one (so generated addresses are adjacent)
 ./trace-gen -m 10000 -n 100 -p 0.5 -f c -z 1,1,2:1,3,4 -s 42 -b 1
 ```
+
+### Update
+#### Gen from 2D
+```bash
+build/2d-tracegen \
+  --addresses 100 \
+  --length 1000 \
+  --p_irm 0.3 \
+  --ird b \
+  --irm zipf:1.2,20 \
+  --blocksize 4096 \
+  --rwratio 1 \
+  --sizedist 1,1:1,4
+```
+or  
+```bash
+build/2d-tracegen \
+  --addresses 100 \
+  --length 1000 \
+  --p_irm 0.3 \
+  --ird b \
+  --irm "2,8" \
+  --blocksize 4096 \
+  --rwratio 1 \
+  --sizedist "1,1:1,4"
+```
+
+#### Gen from KD
+```bash
+build/kd-tracegen \
+  --addresses 10 \
+  --length 100 \
+  --groups 2 \
+  --ird "fgen:100:0.00001:3,5,20;fgen:100:0.005:3,5,10,20" \
+  --irm "7,3" \
+  --blocksize 4096 \
+  --rwratio 1 \
+  --sizedist 1,1:1,4
+```
+or   
+```bash
+build/kd-tracegen \
+  --addresses 10 \
+  --length 100 \
+  --groups 2 \
+  --ird "fgen:100:0.00001:3,5,20;fgen:100:0.005:3,5,10,20" \
+  --irm "zipf:1.2,2" \
+  --blocksize 4096 \
+  --rwratio 1 \
+  --sizedist "1,1:1,4"
+```

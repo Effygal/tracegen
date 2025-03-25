@@ -14,6 +14,14 @@ tracegen_src = [
     'src/tracegen.cc',
 ]
 
+td_tracegen_src = [
+   'src/2d-tracegen.cc', 
+]
+
+kd_tracegen_src = [
+    'src/kd-tracegen.cc',
+]
+
 tracegen_deps = [
     dependency('threads'),
     dependency(
@@ -23,5 +31,8 @@ tracegen_deps = [
     dependency('fmt'),
 ]
 
-# tracegen cpp rewrite
 executable('trace-gen', tracegen_src, dependencies: [tracegen_deps])
+
+executable('2d-tracegen', td_tracegen_src, dependencies: [tracegen_deps])
+
+executable('kd-tracegen', kd_tracegen_src, dependencies: [tracegen_deps])
