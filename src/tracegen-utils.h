@@ -14,7 +14,7 @@
 #include <fmt/core.h>
 #include <fmt/format.h>
 #include <fmt/printf.h>
-#include "utils.h"  // defines vec<T>, str, split(), normalise_vec(), ensure_fatal(), log_info(), log_fatal()
+#include "utils.h"  
 
 inline vec<std::uniform_int_distribution<i64>> get_intervals(i64 classes, i64 max) {
     assert(classes > 0 && max > 0 && classes <= max);
@@ -160,78 +160,88 @@ inline dist parse_ird(str s) {
 }
 
 inline dist parse_irm(str dist_str, i64 max, bool pop_mode = false) {
-    const double scale = 10000.0; // fixed–point scale used in popularity mode
-    // Non-canonical specification: no colon.
-    if(dist_str.find(":") == str::npos) {
-      vec<str> tokens = split(dist_str, ",");
-      // Convert tokens to doubles.
-      vec<double> vals;
-      for(auto &t : tokens)
-        vals.push_back(std::stod(t));
-      normalise_vec(vals);
-      if(!pop_mode) {
-        // Address mode: partition the M addresses into bins.
-        // Compute the bin boundaries.
-        vec<i64> boundaries;
-        boundaries.push_back(0);
-        double sum = 0;
-        for (size_t i = 0; i < vals.size(); i++) {
-          sum += vals[i];
-          // Use floor (or round) to determine the boundary.
-          boundaries.push_back((i64)std::floor(sum * max));
+    const double scale = 10000.0;
+    if (pop_mode) {
+        vec<double> weights;
+        if (dist_str.find(":") != str::npos) {
+            // Canonical specification, e.g., "zipf:1.2,2"
+            vec<str> args = split(dist_str, ":");
+            ensure_fatal(args.size() == 2, "Invalid dist string: {} ", dist_str);
+            vec<str> tokens = split(args[1], ",");
+            for (auto &token : tokens) {
+                weights.push_back(std::stod(token));
+            }
+        } else {
+            // Non-canonical: e.g., "8,2"
+            vec<str> tokens = split(dist_str, ",");
+            for (auto &token : tokens) {
+                weights.push_back(std::stod(token));
+            }
         }
-        // Create a discrete distribution using the normalized weights.
-        std::discrete_distribution<int> bin_dis(vals.begin(), vals.end());
-        return [bin_dis, boundaries](std::mt19937_64 &rng) mutable -> i64 {
-          int bin = bin_dis(rng);
-          i64 start = boundaries[bin];
-          i64 end = boundaries[bin+1] - 1;
-          std::uniform_int_distribution<i64> u(start, end);
-          return u(rng);
+        normalise_vec(weights);
+        size_t counter = 0;
+        return [weights, counter, scale](std::mt19937_64 &rng) mutable -> i64 {
+            (void)rng;  // rng is unused since we use fixed ordering
+            assert(counter < weights.size() && "Not enough weights for all groups");
+            return (i64)std::llround(weights[counter++] * scale);
         };
-      } else {
-        // Popularity mode: return a distribution that samples a weight.
-        std::discrete_distribution<int> dis(vals.begin(), vals.end());
-        return [dis, vals, scale](std::mt19937_64 &rng) mutable -> i64 {
-          int idx = dis(rng);
-          double v = vals[idx]; // normalized weight in [0,1]
-          return (i64) std::llround(v * scale);
-        };
-      }
+    } else {
+        if(dist_str.find(":") == str::npos) {
+            vec<str> tokens = split(dist_str, ",");
+            vec<double> vals;
+            for(auto &t : tokens)
+                vals.push_back(std::stod(t));
+            normalise_vec(vals);
+            vec<i64> boundaries;
+            boundaries.push_back(0);
+            double sum = 0;
+            for (size_t i = 0; i < vals.size(); i++) {
+                sum += vals[i];
+                boundaries.push_back((i64)std::floor(sum * max));
+            }
+            std::discrete_distribution<int> bin_dis(vals.begin(), vals.end());
+            return [bin_dis, boundaries](std::mt19937_64 &rng) mutable -> i64 {
+                int bin = bin_dis(rng);
+                i64 start = boundaries[bin];
+                i64 end = boundaries[bin+1] - 1;
+                std::uniform_int_distribution<i64> u(start, end);
+                return u(rng);
+            };
+        }
+        // Canonical specification for address mode.
+        vec<str> args = split(dist_str, ":");
+        ensure_fatal(args.size() == 2, "Invalid dist string: {} ", dist_str);
+        str dist_type = args[0];
+        vec<str> dist_args = split(args[1], ",");
+        if (dist_type == "pareto") {
+            ensure_fatal(dist_args.size() == 3, "Pareto dist requires 3 args");
+            f64 xm = std::stod(dist_args[0]);
+            f64 alpha = std::stod(dist_args[1]);
+            i64 n = std::stoi(dist_args[2]);
+            log_info("Pareto dist: xm: {} alpha: {} n: {}", xm, alpha, n);
+            return pareto_dist(xm, alpha, n, max);
+        }
+        if (dist_type == "zipf") {
+            ensure_fatal(dist_args.size() == 2, "Zipf dist requires 2 args");
+            f64 alpha = std::stod(dist_args[0]);
+            i64 n = std::stoi(dist_args[1]);
+            log_info("Zipf dist: alpha: {} n: {}", alpha, n);
+            return zipf_dist(alpha, n, max);
+        }
+        if (dist_type == "uniform") {
+            log_info("Uniform dist: max: {}", max);
+            return uniform_dist(max);
+        }
+        if (dist_type == "normal") {
+            ensure_fatal(dist_args.size() == 2, "Normal dist requires 2 args");
+            f64 mu = std::stod(dist_args[0]);
+            f64 sigma = std::stod(dist_args[1]);
+            log_info("Normal dist: mu: {} sigma: {}", mu, sigma);
+            return normal_dist(mu, sigma, max);
+        }
+        log_fatal("Invalid dist type: {}", dist_type);
+        exit(1);
     }
-    // Canonical specification: parse as before.
-    vec<str> args = split(dist_str, ":");
-    ensure_fatal(args.size() == 2, "Invalid dist string: {} ", dist_str);
-    str dist_type = args[0];
-    vec<str> dist_args = split(args[1], ",");
-    if (dist_type == "pareto") {
-      ensure_fatal(dist_args.size() == 3, "Pareto dist requires 3 args");
-      f64 xm = std::stod(dist_args[0]);
-      f64 alpha = std::stod(dist_args[1]);
-      i64 n = std::stoi(dist_args[2]);
-      log_info("Pareto dist: xm: {} alpha: {} n: {}", xm, alpha, n);
-      return pareto_dist(xm, alpha, n, max);
-    }
-    if (dist_type == "zipf") {
-      ensure_fatal(dist_args.size() == 2, "Zipf dist requires 2 args");
-      f64 alpha = std::stod(dist_args[0]);
-      i64 n = std::stoi(dist_args[1]);
-      log_info("Zipf dist: alpha: {} n: {}", alpha, n);
-      return zipf_dist(alpha, n, max);
-    }
-    if (dist_type == "uniform") {
-      log_info("Uniform dist: max: {}", max);
-      return uniform_dist(max);
-    }
-    if (dist_type == "normal") {
-      ensure_fatal(dist_args.size() == 2, "Normal dist requires 2 args");
-      f64 mu = std::stod(dist_args[0]);
-      f64 sigma = std::stod(dist_args[1]);
-      log_info("Normal dist: mu: {} sigma: {}", mu, sigma);
-      return normal_dist(mu, sigma, max);
-    }
-    log_fatal("Invalid dist type: {}", dist_type);
-    exit(1);
-  }
+}
   
 #endif // TRACEGEN_UTILS_H

@@ -88,6 +88,7 @@ int main(int argc, char **argv) {
     
     std::mt19937_64 rng(seed);
     auto ird = parse_ird(ird_arg);
+    // use pop = False for 2d-gen
     auto irm = parse_irm(irm_arg, num_addrs, false);
     auto sizedist = parse_request_sizes(sizedist_arg);
     auto addrs = td_gen(num_addrs, length, p_irm, ird, irm, rng);

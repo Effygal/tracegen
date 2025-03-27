@@ -126,13 +126,14 @@ int main(int argc, char **argv) {
     ensure_fatal(ird_parts.size() == (size_t)groups, "Expected {} IRD specs, got {}", groups, ird_parts.size());
     vec<dist> irds;
     for (auto &spec : ird_parts) {
-    irds.push_back(parse_ird(spec));
+        irds.push_back(parse_ird(spec));
     }
+    // use pop = True for kd-gen
     dist irm_dist = parse_irm(irm_arg, num_addrs, true);
     vec<double> pop;
     for (int i = 0; i < groups; i++) {
-    i64 sample = irm_dist(rng);
-    pop.push_back((double)sample / 10000.0);
+        i64 sample = irm_dist(rng);
+        pop.push_back((double)sample / 10000.0);
     }
     auto sizedist = parse_request_sizes(sizedist_arg);
     auto addrs = kd_gen(num_addrs, length, irds, pop, rng);
